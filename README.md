@@ -8,20 +8,16 @@ Training metadata comes from `train.csv`, which provides a filename and a jaguar
 
 To estimate generalization reliably, I use **Stratified K-Fold cross-validation** on the training set (stratified by identity labels). For `n_folds = K`, each fold uses approximately:
 
-$$
-
+```math
 \text{val fraction} \approx \frac{1}{K}, \qquad \text{train fraction} \approx \frac{K-1}{K}.
-
-$$
+```
 
 In code, this is done with `StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)`, so each fold preserves the identity distribution as much as possible. (If `n_folds=2`, validation is 50%; if `n_folds=5`, validation is 20%.)  
 An optional `val_size < 1.0` can reduce the validation fold to speed up experiments; effectively:
 
-$$
-
+```math
 \text{effective val fraction} \approx \frac{1}{K}\cdot \text{val\_size}.
-
-$$
+```
 
 ### Train / Val / Test transform strategy
 
@@ -59,11 +55,9 @@ The test set is defined by a list of query–gallery pairs. Inference embeds all
 - `row_id` matching `test.csv` order
 - `similarity` in \([0, 1]\), typically obtained from cosine similarity \(s \in [-1,1]\) via:
 
-$$
-
+```math
 \text{sim}_{01} = \frac{s + 1}{2}.
-
-$$
+```
 
 This keeps preprocessing consistent between validation and test and ensures the model is evaluated under the same retrieval assumptions.
 
@@ -79,11 +73,9 @@ The feature extractor is **MegaDescriptor-L** loaded from `timm` via Hugging Fac
 
 A lightweight embedding head is applied on top of backbone features to produce the final descriptor. The head keeps the representation in the same dimension (1536) and ends with **L2-normalization**, so cosine similarity reduces to a dot product:
 
-$$
-
+```math
 \hat{\mathbf{z}} = \frac{\mathbf{z}}{\|\mathbf{z}\|_2}.
-
-$$
+```
 
 This normalization is essential for stable metric learning and for using cosine similarity consistently at train/val/test time.
 
@@ -93,19 +85,15 @@ This normalization is essential for stable metric learning and for using cosine 
 
 Although evaluation is retrieval-based, training uses an identity classification surrogate that directly shapes angular margins in embedding space: **ArcFace**. ArcFace replaces a standard linear classifier with a cosine-based classifier and enforces an angular margin \(m\) between classes. With normalized embeddings \(\hat{\mathbf{z}}\) and normalized class weights \(\hat{\mathbf{w}}_c\), the cosine logit for class \(c\) is:
 
-$$
-
+```math
 \cos(\theta_c) = \hat{\mathbf{z}}^\top \hat{\mathbf{w}}_c.
-
-$$
+```
 
 For the target class \(y\), ArcFace applies an additive angular margin:
 
-$$
-
+```math
 \phi_y = \cos(\theta_y + m),
-
-$$
+```
 
 and scales logits by a constant \(s\) before the softmax. This encourages **tight intra-class clusters** and **larger inter-class separation** directly in cosine space, which aligns well with the competition metric (ranking by similarity).
 
@@ -113,11 +101,9 @@ and scales logits by a constant \(s\) before the softmax. This encourages **tigh
 
 Training minimizes standard cross-entropy over the ArcFace logits:
 
-$$
-
+```math
 \mathcal{L} = -\log \frac{\exp(s \cdot \phi_y)}{\sum_{c}\exp(s \cdot \cos(\theta_c))}.
-
-$$
+```
 
 In practice, the margin \(m\) can be kept fixed (e.g. \(m=0.5\)) for simplicity, or scheduled/ramped across epochs.
 
@@ -125,18 +111,14 @@ In practice, the margin \(m\) can be kept fixed (e.g. \(m=0.5\)) for simplicity,
 
 At inference, embeddings are L2-normalized and the similarity between query \(q\) and gallery \(g\) is the cosine similarity:
 
-$$
-
+```math
 s(q,g) = \hat{\mathbf{z}}_q^\top \hat{\mathbf{z}}_g \in [-1,1].
-
-$$
+```
 
 For the submission format requiring \([0,1]\), the score is mapped as:
 
-$$
-
+```math
 \text{sim}_{01} = \frac{s(q,g)+1}{2}.
-
-$$
+```
 
 This keeps training geometry (cosine space) consistent with validation and test-time scoring.
